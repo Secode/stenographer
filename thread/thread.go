@@ -187,6 +187,10 @@ func (t *Thread) cleanUpOnLowDiskSpace() {
 	defer fido.Stop()
 	for {
 		fido.Reset(time.Minute)
+		if len(t.files) == 0 {
+			v(2, "Thread %v has 0 files. Nothing to clean up", t.id)
+			return
+		}
 		if len(t.files) > t.conf.MaxDirectoryFiles {
 			v(1, "Thread %v has too many files. %d > %d, deleting", t.id, len(t.files), t.conf.MaxDirectoryFiles)
 			t.deleteOldestThreadFiles(len(t.files)-t.conf.MaxDirectoryFiles, nil)
