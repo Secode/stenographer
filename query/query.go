@@ -187,13 +187,13 @@ func (a timeQuery) LookupIn(ctx context.Context, index *indexfile.IndexFile) (bp
 	// Note, we add a minute when doing 'before' queries and subtract a minute
 	// when doing 'after' queries, to make sure we actually get the time
 	// specified.
-	if !a[0].IsZero() && t.Before(a[0].Add(-time.Minute)) {
-		v(3, "%s > %s", strconv.FormatInt(t.Unix(), 10), strconv.FormatInt(a[0].Unix(), 10))
+	if !a[0].IsZero() && t.Before(a[0]) {
+		v(3, "%s is before %s", strconv.FormatInt(t.Unix(), 10), strconv.FormatInt(a[0].Unix(), 10))
 		v(2, "time query skipping %q as it's before the specified after date/time", index.Name())
 		return base.NoPositions, nil
 	}
-	if !a[1].IsZero() && t.After(a[1].Add(time.Minute)) {
-		v(3, "%s < %s", strconv.FormatInt(t.Unix(), 10), strconv.FormatInt(a[0].Unix(), 10))
+	if !a[1].IsZero() && t.After(a[1]) {
+		v(3, "%s is after %s", strconv.FormatInt(t.Unix(), 10), strconv.FormatInt(a[0].Unix(), 10))
 		v(2, "time query skipping %q as it's after the specified before date/time", index.Name())
 		return base.NoPositions, nil
 	}
