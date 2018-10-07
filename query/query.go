@@ -177,6 +177,13 @@ func (a timeQuery) LookupIn(ctx context.Context, index *indexfile.IndexFile) (bp
 		return nil, fmt.Errorf("could not parse basename %q: %v", last, err)
 	}
 	t := time.Unix(0, intval*1000) // converts micros -> nanos
+	// Additional debugging to find the cause of "missed skips"
+	if !a[0].IsZero() {
+		v(2, "After criteria is set to %v which is %s in epoch", a[1].Format(time.RFC3339), strconv.FormatInt(a[1].Unix(), 10))
+	}
+	if !a[1].IsZero() {
+		v(2, "Before criteria is set to %v which is %s in epoch", a[0].Format(time.RFC3339), strconv.FormatInt(a[0].Unix(), 10))
+	}
 	// Note, we add a minute when doing 'before' queries and subtract a minute
 	// when doing 'after' queries, to make sure we actually get the time
 	// specified.
