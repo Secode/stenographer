@@ -120,6 +120,7 @@ func (q ipQuery) LookupIn(ctx context.Context, index *indexfile.IndexFile) (bp b
 }
 func (q ipQuery) String() string { return fmt.Sprintf("host %v-%v", q[0], q[1]) }
 func (q ipQuery) base() bool     { return true }
+func (a ipQuery) GetBeforeAfter() (after time.Time, before time.Time, err error) { return time.Time{}, time.Time{}, nil }
 
 type unionQuery []Query
 
@@ -169,9 +170,24 @@ func (a intersectQuery) base() bool { return false }
 
 type timeQuery [2]time.Time
 
+func (a timeQuery) GetBeforeAfter() (after time.Time, before time.Time, err error) {
+        if !a[0].IsZero() { 
+		v(2, "After set to %s", a[0].Format(time.RFC3339))
+                return time.Time{}, a[0], nil 
+	}
+        if !a[1].IsZero() { 
+		v(2, "Before set to %s", a[1].Format(time.RFC3339))
+                return a[1], time.Time{}, nil 
+	}
+	v(2, "Neither before or after is set")
+	return time.Time{}, time.Time{}, nil
+}
+
 func (a timeQuery) LookupIn(ctx context.Context, index *indexfile.IndexFile) (bp base.Positions, err error) {
 	defer log(a, index, &bp, &err)()
 	last := filepath.Base(index.Name())
+        after := time.Unix(0,0)
+        before := time.Now()
 	intval, err := strconv.ParseInt(last, 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse basename %q: %v", last, err)
@@ -179,26 +195,22 @@ func (a timeQuery) LookupIn(ctx context.Context, index *indexfile.IndexFile) (bp
 	t := time.Unix(0, intval*1000) // converts micros -> nanos
 	// Additional debugging to find the cause of "missed skips"
 	if !a[0].IsZero() {
-		v(2, "After criteria is set to %v which is %s in epoch", a[0].Format(time.RFC3339), strconv.FormatInt(a[0].Unix(), 10))
+		after = a[0].Add(-time.Minute)
+		v(2, "After set to %s", after.Format(time.RFC3339))
 	}
 	if !a[1].IsZero() {
-		v(2, "Before criteria is set to %v which is %s in epoch", a[1].Format(time.RFC3339), strconv.FormatInt(a[1].Unix(), 10))
+		before = a[1].Add(time.Minute)
+		v(2, "Before set to %s", before.Format(time.RFC3339))
 	}
 	// Note, we add a minute when doing 'before' queries and subtract a minute
 	// when doing 'after' queries, to make sure we actually get the time
 	// specified.
-	if !a[0].IsZero() && t.Before(a[0]) {
-		v(3, "%s is before %s", strconv.FormatInt(t.Unix(), 10), strconv.FormatInt(a[0].Unix(), 10))
-		v(2, "time query skipping %q as it's before the specified after date/time", index.Name())
-		return base.NoPositions, nil
+	if after.After(t) && before.Before(t) {
+		v(2, "%q is in scope", index.Name())
+		return base.AllPositions, nil
 	}
-	if !a[1].IsZero() && t.After(a[1]) {
-		v(3, "%s is after %s", strconv.FormatInt(t.Unix(), 10), strconv.FormatInt(a[0].Unix(), 10))
-		v(2, "time query skipping %q as it's after the specified before date/time", index.Name())
-		return base.NoPositions, nil
-	}
-	v(2, "time query using %q", index.Name())
-	return base.AllPositions, nil
+	v(2, "Skipping %q", index.Name())
+	return base.NoPositions, nil
 }
 func (a timeQuery) String() string {
 	if a[0].IsZero() {
