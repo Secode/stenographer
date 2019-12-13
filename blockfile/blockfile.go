@@ -25,11 +25,11 @@ import (
 	"unsafe"
 
 	"github.com/google/gopacket"
-	"github.com/google/stenographer/base"
-	"github.com/google/stenographer/filecache"
-	"github.com/google/stenographer/indexfile"
-	"github.com/google/stenographer/query"
-	"github.com/google/stenographer/stats"
+	"github.com/secode/stenographer/base"
+	"github.com/secode/stenographer/filecache"
+	"github.com/secode/stenographer/indexfile"
+	"github.com/secode/stenographer/query"
+	"github.com/secode/stenographer/stats"
 	"golang.org/x/net/context"
 )
 

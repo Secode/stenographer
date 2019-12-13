@@ -26,10 +26,10 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/google/stenographer/base"
-	"github.com/google/stenographer/config"
-	"github.com/google/stenographer/env"
-        "github.com/google/stenographer/rpc"
+	"github.com/secode/stenographer/base"
+	"github.com/secode/stenographer/config"
+	"github.com/secode/stenographer/env"
+        "github.com/secode/stenographer/rpc"
 
 	_ "net/http/pprof" // server debugging info in /debug/pprof/*
 )

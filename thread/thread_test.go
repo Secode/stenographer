@@ -24,8 +24,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/stenographer/config"
-	"github.com/google/stenographer/filecache"
+	"github.com/secode/stenographer/config"
+	"github.com/secode/stenographer/filecache"
 )
 
 const (

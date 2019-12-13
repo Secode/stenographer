@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/stenographer/base"
+	"github.com/secode/stenographer/base"
 )
 
 var v = base.V

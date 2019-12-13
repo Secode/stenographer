@@ -99,7 +99,7 @@ Downloading
 
 To download the source code, install Go locally, then run:
 
-    $ go get github.com/google/stenographer
+    $ go get github.com/secode/stenographer
     
 Go will handle downloading and installing all Go libraries that `stenographer`
 depends on.  To build `stenotype`, go into the `stenotype` directory and run `make`.

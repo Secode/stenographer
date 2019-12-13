@@ -22,8 +22,8 @@ import (
 
 	"golang.org/x/net/context"
 
-	"github.com/google/stenographer/base"
-	"github.com/google/stenographer/filecache"
+	"github.com/secode/stenographer/base"
+	"github.com/secode/stenographer/filecache"
 )
 
 var ctx = context.Background()

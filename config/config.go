@@ -23,7 +23,7 @@ import (
 	"io/ioutil"
 	"net"
 
-	"github.com/google/stenographer/base"
+	"github.com/secode/stenographer/base"
 )
 
 var v = base.V // verbose logging
