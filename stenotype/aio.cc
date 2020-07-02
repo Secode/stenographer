@@ -187,6 +187,9 @@ Error Output::Rotate(const std::string& dirname, int64_t micros,
   }
   std::string name = HiddenFile(dirname, micros);
   int fd = open(name.c_str(), O_CREAT | O_WRONLY | O_DSYNC | O_DIRECT, 0600);
+  if (fd < 0)
+    LOG(INFO) << "Opening with O_DIRECT and O_DSYNC failed, trying fallback";
+    fd = open(name.c_str(), O_CREAT | O_WRONLY, 0600);
   LOG(INFO) << "Opening packet file " << name << ": " << fd;
   RETURN_IF_ERROR(Errno(fd), "open");
   if (initial_size > 0) {
