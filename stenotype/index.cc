@@ -215,11 +215,20 @@ pre_ip_encapsulation:
     start += gre_header_size;
 
     if (gre_proto == kGREProtoERSPANII) {
-      // ERSPAN Type II: 8-byte header
-      if (start + kERSPANIIHeaderSize > limit) {
+      // Type I and II both use 0x88BE - check version field to differentiate
+      // Version is in the first 4 bits of the first byte after GRE header
+      if (start + 1 > limit) {
         return;
       }
-      start += kERSPANIIHeaderSize;
+      uint8_t version = (*reinterpret_cast<const uint8_t*>(start)) >> 4;
+      if (version == 1) {
+        // ERSPAN Type II: 8-byte header
+        if (start + kERSPANIIHeaderSize > limit) {
+          return;
+        }
+        start += kERSPANIIHeaderSize;
+      }
+      // else: ERSPAN Type I (version 0) - no header, inner frame starts here
       type = kTypeEthernet;
       goto pre_ip_encapsulation;
     } else if (gre_proto == kGREProtoERSPANIII) {
