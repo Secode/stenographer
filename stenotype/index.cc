@@ -46,6 +46,16 @@ namespace st {
 const uint16_t kTypeEthernet = 0;
 const uint32_t kMPLSBottomOfStack = 1 << 8;
 
+// GRE protocol number
+const uint8_t kProtoGRE = 47;
+// ERSPAN GRE protocol types
+const uint16_t kGREProtoERSPANII = 0x88BE;
+const uint16_t kGREProtoERSPANIII = 0x22EB;
+// ERSPAN header sizes
+const size_t kERSPANIIHeaderSize = 8;
+const size_t kERSPANIIIHeaderSize = 12;
+const size_t kERSPANIIISubheaderSize = 8;
+
 void Index::Process(const Packet& p, int64_t block_offset) {
   packets_++;
   int64_t packet_offset = block_offset + p.offset_in_block;
@@ -180,6 +190,60 @@ pre_ip_encapsulation:
     default:
       return;
   }
+
+  // Handle GRE/ERSPAN encapsulation - decapsulate and restart parsing
+  if (protocol == kProtoGRE) {
+    // GRE header: 2 bytes flags, 2 bytes protocol type, optional fields
+    if (start + 4 > limit) {
+      return;
+    }
+    uint16_t gre_flags = ntohs(*reinterpret_cast<const uint16_t*>(start));
+    uint16_t gre_proto = ntohs(*reinterpret_cast<const uint16_t*>(start + 2));
+
+    // Calculate GRE header size based on flags
+    // Bit 15 (C): Checksum present (adds 4 bytes: 2 checksum + 2 reserved)
+    // Bit 13 (K): Key present (adds 4 bytes)
+    // Bit 12 (S): Sequence present (adds 4 bytes)
+    size_t gre_header_size = 4;
+    if (gre_flags & 0x8000) gre_header_size += 4;  // Checksum
+    if (gre_flags & 0x2000) gre_header_size += 4;  // Key
+    if (gre_flags & 0x1000) gre_header_size += 4;  // Sequence
+
+    if (start + gre_header_size > limit) {
+      return;
+    }
+    start += gre_header_size;
+
+    if (gre_proto == kGREProtoERSPANII) {
+      // ERSPAN Type II: 8-byte header
+      if (start + kERSPANIIHeaderSize > limit) {
+        return;
+      }
+      start += kERSPANIIHeaderSize;
+      type = kTypeEthernet;
+      goto pre_ip_encapsulation;
+    } else if (gre_proto == kGREProtoERSPANIII) {
+      // ERSPAN Type III: 12-byte header + optional 8-byte subheader
+      if (start + kERSPANIIIHeaderSize > limit) {
+        return;
+      }
+      // Check O bit (optional subheader flag) - bit 0 of the last byte of the
+      // 12-byte header
+      uint8_t flags_byte = *reinterpret_cast<const uint8_t*>(start + 11);
+      size_t erspan_size = kERSPANIIIHeaderSize;
+      if (flags_byte & 0x01) {  // O bit set
+        erspan_size += kERSPANIIISubheaderSize;
+      }
+      if (start + erspan_size > limit) {
+        return;
+      }
+      start += erspan_size;
+      type = kTypeEthernet;
+      goto pre_ip_encapsulation;
+    }
+    // Not ERSPAN, fall through to index as regular GRE (protocol 47)
+  }
+
   AddProtocol(protocol, packet_offset);
   switch (protocol) {
     case IPPROTO_TCP: {
