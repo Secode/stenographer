@@ -108,6 +108,9 @@ class Index {
       : dirname_(dirname),
         micros_(micros),
         packets_(0),
+        erspan_type1_packets_(0),
+        erspan_type2_packets_(0),
+        erspan_type3_packets_(0),
         ip_pieces_(1 << 20) {}  // Start slice set off at 1MB.
   virtual ~Index() {}
 
@@ -126,6 +129,9 @@ class Index {
   std::string dirname_;
   int64_t micros_;
   int64_t packets_;
+  int64_t erspan_type1_packets_;
+  int64_t erspan_type2_packets_;
+  int64_t erspan_type3_packets_;
   SliceSet ip_pieces_;
   std::map<uint32_t, std::vector<uint32_t>> ip4_;
   std::map<leveldb::Slice, std::vector<uint32_t>> ip6_;

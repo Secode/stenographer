@@ -227,8 +227,11 @@ pre_ip_encapsulation:
           return;
         }
         start += kERSPANIIHeaderSize;
+        erspan_type2_packets_++;
+      } else {
+        // ERSPAN Type I (version 0) - no header, inner frame starts here
+        erspan_type1_packets_++;
       }
-      // else: ERSPAN Type I (version 0) - no header, inner frame starts here
       type = kTypeEthernet;
       goto pre_ip_encapsulation;
     } else if (gre_proto == kGREProtoERSPANIII) {
@@ -247,6 +250,7 @@ pre_ip_encapsulation:
         return;
       }
       start += erspan_size;
+      erspan_type3_packets_++;
       type = kTypeEthernet;
       goto pre_ip_encapsulation;
     }
@@ -345,7 +349,10 @@ Error Index::Flush() {
   VLOG(1) << "Stored " << packets_ << " with " << ip4_.size() << " IP4 "
           << ip6_.size() << " IP6 " << proto_.size() << " protos "
           << port_.size() << " ports " << vlan_.size() << " vlan "
-          << mpls_.size() << " mpls";
+          << mpls_.size() << " mpls"
+          << " erspan_t1=" << erspan_type1_packets_
+          << " erspan_t2=" << erspan_type2_packets_
+          << " erspan_t3=" << erspan_type3_packets_;
   return SUCCESS;
 }
 
