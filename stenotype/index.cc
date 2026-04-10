@@ -64,6 +64,17 @@ void Index::Process(const Packet& p, int64_t block_offset) {
   const char* limit = start + p.data.size();
   uint16_t type = kTypeEthernet;
   uint8_t protocol = 0;
+  // Set to true after ERSPAN decapsulation so we know we are processing the
+  // inner frame.  Used to (a) add inner IPs directly and (b) avoid counting
+  // inner-frame anomalies as physical-packet counter events.
+  bool inner_frame = false;
+
+  // Outer IP addresses are deferred until we confirm the packet is not ERSPAN.
+  // For ERSPAN packets the tunnel endpoint IPs should not pollute the index.
+  uint32_t outer_ip4_src = 0, outer_ip4_dst = 0;
+  bool has_outer_ip4 = false;
+  const char* outer_ip6_src_ptr = nullptr;
+  const char* outer_ip6_dst_ptr = nullptr;
 
 // We use a goto loop within this switch statement to strip all pre-IP-header
 // layers off of the given packet.
@@ -132,8 +143,16 @@ pre_ip_encapsulation:
         return;
       }
       auto ip4 = reinterpret_cast<const struct iphdr*>(start);
-      AddIPv4(ntohl(ip4->saddr), packet_offset);
-      AddIPv4(ntohl(ip4->daddr), packet_offset);
+      if (inner_frame) {
+        // Inner frame after ERSPAN decapsulation: index IPs directly.
+        AddIPv4(ntohl(ip4->saddr), packet_offset);
+        AddIPv4(ntohl(ip4->daddr), packet_offset);
+      } else {
+        // Outer frame: defer until we know whether this is ERSPAN.
+        outer_ip4_src = ntohl(ip4->saddr);
+        outer_ip4_dst = ntohl(ip4->daddr);
+        has_outer_ip4 = true;
+      }
       size_t len = ip4->ihl;
       len *= 4;
       if (len < 20) return;
@@ -148,10 +167,15 @@ pre_ip_encapsulation:
       auto ip6 = reinterpret_cast<const struct ip6_hdr*>(start);
       protocol = ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt;
       start += sizeof(struct ip6_hdr);
-      AddIPv6(leveldb::Slice(reinterpret_cast<const char*>(&ip6->ip6_src), 16),
-              packet_offset);
-      AddIPv6(leveldb::Slice(reinterpret_cast<const char*>(&ip6->ip6_dst), 16),
-              packet_offset);
+      if (inner_frame) {
+        AddIPv6(leveldb::Slice(reinterpret_cast<const char*>(&ip6->ip6_src), 16),
+                packet_offset);
+        AddIPv6(leveldb::Slice(reinterpret_cast<const char*>(&ip6->ip6_dst), 16),
+                packet_offset);
+      } else {
+        outer_ip6_src_ptr = reinterpret_cast<const char*>(&ip6->ip6_src);
+        outer_ip6_dst_ptr = reinterpret_cast<const char*>(&ip6->ip6_dst);
+      }
 
     // Here, we use another goto loop to strip off all IPv6 extensions.
     ip6_extensions:
@@ -188,6 +212,8 @@ pre_ip_encapsulation:
       break;
     }
     default:
+      // Outer frame with a non-IP EtherType (ARP, STP BPDUs, etc.).
+      if (!inner_frame) non_ip_packets_++;
       return;
   }
 
@@ -232,6 +258,8 @@ pre_ip_encapsulation:
         // ERSPAN Type I (version 0) - no header, inner frame starts here
         erspan_type1_packets_++;
       }
+      // Outer tunnel IPs are intentionally NOT committed to the index.
+      inner_frame = true;
       type = kTypeEthernet;
       goto pre_ip_encapsulation;
     } else if (gre_proto == kGREProtoERSPANIII) {
@@ -251,10 +279,36 @@ pre_ip_encapsulation:
       }
       start += erspan_size;
       erspan_type3_packets_++;
+      // Outer tunnel IPs are intentionally NOT committed to the index.
+      inner_frame = true;
       type = kTypeEthernet;
       goto pre_ip_encapsulation;
     }
-    // Not ERSPAN, fall through to index as regular GRE (protocol 47)
+    // Non-ERSPAN GRE: commit deferred outer IPs and index as protocol 47.
+    if (!inner_frame) {
+      gre_packets_++;
+      if (has_outer_ip4) {
+        AddIPv4(outer_ip4_src, packet_offset);
+        AddIPv4(outer_ip4_dst, packet_offset);
+      }
+      if (outer_ip6_src_ptr) {
+        AddIPv6(leveldb::Slice(outer_ip6_src_ptr, 16), packet_offset);
+        AddIPv6(leveldb::Slice(outer_ip6_dst_ptr, 16), packet_offset);
+      }
+    }
+  } else {
+    // Non-GRE IP: commit deferred outer IPs.
+    if (!inner_frame) {
+      ip_packets_++;
+      if (has_outer_ip4) {
+        AddIPv4(outer_ip4_src, packet_offset);
+        AddIPv4(outer_ip4_dst, packet_offset);
+      }
+      if (outer_ip6_src_ptr) {
+        AddIPv6(leveldb::Slice(outer_ip6_src_ptr, 16), packet_offset);
+        AddIPv6(leveldb::Slice(outer_ip6_dst_ptr, 16), packet_offset);
+      }
+    }
   }
 
   AddProtocol(protocol, packet_offset);
@@ -352,7 +406,10 @@ Error Index::Flush() {
           << mpls_.size() << " mpls"
           << " erspan_t1=" << erspan_type1_packets_
           << " erspan_t2=" << erspan_type2_packets_
-          << " erspan_t3=" << erspan_type3_packets_;
+          << " erspan_t3=" << erspan_type3_packets_
+          << " non_ip=" << non_ip_packets_
+          << " ip=" << ip_packets_
+          << " gre=" << gre_packets_;
   return SUCCESS;
 }
 

@@ -111,6 +111,9 @@ class Index {
         erspan_type1_packets_(0),
         erspan_type2_packets_(0),
         erspan_type3_packets_(0),
+        non_ip_packets_(0),
+        ip_packets_(0),
+        gre_packets_(0),
         ip_pieces_(1 << 20) {}  // Start slice set off at 1MB.
   virtual ~Index() {}
 
@@ -132,6 +135,9 @@ class Index {
   int64_t erspan_type1_packets_;
   int64_t erspan_type2_packets_;
   int64_t erspan_type3_packets_;
+  int64_t non_ip_packets_;  // Outer frames with non-IP EtherType (ARP, STP, …)
+  int64_t ip_packets_;      // Outer IP frames; excludes GRE/ERSPAN tunnel traffic
+  int64_t gre_packets_;     // GRE frames; excludes ERSPAN-encapsulated traffic
   SliceSet ip_pieces_;
   std::map<uint32_t, std::vector<uint32_t>> ip4_;
   std::map<leveldb::Slice, std::vector<uint32_t>> ip6_;
