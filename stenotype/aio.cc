@@ -204,6 +204,8 @@ Error Output::Rotate(const std::string& dirname, int64_t micros,
 Error Output::Flush() {
   if (current_ != NULL) {
     current_->RequestClose();
+    // Without outstanding writes no completion will close the file.
+    RETURN_IF_ERROR(MaybeCloseFile(current_), "maybe close");
     current_ = NULL;
   }
   while (files_.size()) {
